@@ -13,21 +13,21 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(lubrication/update_BC,FixLubricationUpdateBC)
+FixStyle(lubrication/update_PKN,FixLubricationUpdatePKN)
 
 #else
 
-#ifndef LMP_FIX_LUBRICATION_UPDATE_BC_H
-#define LMP_FIX_LUBRICATION_UPDATE_BC_H
+#ifndef LMP_FIX_LUBRICATION_UPDATE_PKN_H
+#define LMP_FIX_LUBRICATION_UPDATE_PKN_H
 
 #include "fix.h"
 
 namespace LAMMPS_NS {
 
-class FixLubricationUpdateBC : public Fix {
+class FixLubricationUpdatePKN : public Fix {
  public:
-  FixLubricationUpdateBC(class LAMMPS *, int, char **);
-  ~FixLubricationUpdateBC();
+  FixLubricationUpdatePKN(class LAMMPS *, int, char **);
+  ~FixLubricationUpdatePKN();
 
   int setmask();
 
@@ -37,7 +37,6 @@ class FixLubricationUpdateBC : public Fix {
   int find_channel_atom(int, int);
   void cal_channel_pressure();
   void lubrication();
-  void copy_channel_width();
   void check_channel_pressure();
   void channel_update();
   void new_channel();  
@@ -50,12 +49,9 @@ class FixLubricationUpdateBC : public Fix {
   double memory_usage();
 
  private:
-  double BC_xlo, BC_xhi;
-  double BC_ylo, BC_yhi;
-  double BC_zlo, BC_zhi;
-  double vij_max;
-  double lat_spacing;
-  //  double injection_x, injection_y, injection_z;
+  //  double cutoff;
+  double PKN_X, PKN_Y, PKN_Z; 
+  double injection_x, injection_y, injection_z;
   int nmax;
   int *partner;
 

@@ -10,12 +10,10 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-#include <iostream>     // std::cout
-#include <limits>       // std::numeric_limits
 
 #include "string.h"
 #include "math.h"
-#include "fix_lubrication_update_BC.h"
+#include "fix_lubrication_update_BC2.h"
 #include "group.h"
 #include "modify.h"
 #include "error.h"
@@ -38,10 +36,13 @@ using namespace FixConst;
 
 /* ---------------------------------------------------------------------- */
 
-FixLubricationUpdateBC::FixLubricationUpdateBC(LAMMPS *lmp, int narg, char **arg) :
+FixLubricationUpdateBC2::FixLubricationUpdateBC2(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg)
 {
-  if (narg < 11) error->all(FLERR,"Illegal fix lubrication/update command"); // ID group-ID fixchannelini
+  if (narg < 9) error->all(FLERR,"Illegal fix lubrication/update command"); // ID group-ID fixchannelini
+  //  injection_x = atof(arg[3]);
+  //  injection_y = atof(arg[4]);
+  //  injection_z = atof(arg[5]);
 
   BC_xlo = atof(arg[3]);
   BC_xhi = atof(arg[4]);
@@ -52,17 +53,13 @@ FixLubricationUpdateBC::FixLubricationUpdateBC(LAMMPS *lmp, int narg, char **arg
   BC_zlo = atof(arg[7]);
   BC_zhi = atof(arg[8]);
 
-  vij_max = atof(arg[9]);
-
-  lat_spacing = atof(arg[10]);
-
   partner = NULL;
   nmax =0;
 }
 
 
 
-FixLubricationUpdateBC::~FixLubricationUpdateBC()
+FixLubricationUpdateBC2::~FixLubricationUpdateBC2()
 {
   memory->destroy(partner);
 }
@@ -71,10 +68,10 @@ FixLubricationUpdateBC::~FixLubricationUpdateBC()
 /*============
   setmask
   ============*/
-int FixLubricationUpdateBC::setmask()
+int FixLubricationUpdateBC2::setmask()
 {
   int mask = 0;
-  //   mask |= PRE_FORCE;
+   mask |= PRE_FORCE;
    mask |= FINAL_INTEGRATE;
   return mask;
 }
@@ -84,8 +81,8 @@ int FixLubricationUpdateBC::setmask()
   called before force routine
   ==================================*/
 
-//void FixLubricationUpdateBC::pre_force(int vflag)
-void FixLubricationUpdateBC::final_integrate()
+//void FixLubricationUpdateBC2::pre_force(int vflag)
+void FixLubricationUpdateBC2::final_integrate()
 
 {
   
@@ -94,6 +91,7 @@ void FixLubricationUpdateBC::final_integrate()
     nmax = atom->nmax;
     memory->create(partner,nmax,"fix_lubrication_update:partner");
   }
+
 
   //comm->borders();
   comm->forward_comm();
@@ -109,11 +107,9 @@ void FixLubricationUpdateBC::final_integrate()
   cal_channel_pressure();
   comm->forward_comm();
 
-  copy_channel_width();
-  comm->forward_comm();
-
   lubrication();
   comm->forward_comm();
+
 
   neighbor->build_topology();
   channel_update();
@@ -125,26 +121,9 @@ void FixLubricationUpdateBC::final_integrate()
 
 
 /*==================================
-  copy channel_width to channel_width_old
-  ==================================*/
-
-void FixLubricationUpdateBC::copy_channel_width()
-{
-  int nlocal = atom->nlocal;
-  int *atype = atom->type;
-  double *channel_width = atom->channel_width;
-  double *channel_width_old = atom->channel_width_old;
-  int n;
-  for (n=0; n<nlocal;n++){
-    if (atype[n] != CONNECTED_CHANNEL_ATOM_TYPE) continue;
-    channel_width_old[n]= channel_width[n];
-  }
-}
-
-/*==================================
   calculate channel pressure
   ==================================*/
-void FixLubricationUpdateBC::cal_channel_pressure()
+void FixLubricationUpdateBC2::cal_channel_pressure()
 {
   
   int n;
@@ -163,6 +142,7 @@ void FixLubricationUpdateBC::cal_channel_pressure()
   double delta_mag;
   int *tag = atom->tag;
   double check_force;
+
   for (n=0; n<nlocal; n++){
     if (atype[n] != CONNECTED_CHANNEL_ATOM_TYPE) continue;
     channel_atom = n;
@@ -180,18 +160,42 @@ void FixLubricationUpdateBC::cal_channel_pressure()
 
     pressure =-( (f0[rock_atom1][0]*delta_x+f0[rock_atom1][1]*delta_y + f0[rock_atom1][2]*delta_z) -(f0[rock_atom2][0]*delta_x+f0[rock_atom2][1]*delta_y + f0[rock_atom2][2]*delta_z) )/2.0/delta_mag;
 
-    if (pressure < 0) {
-      //      fprintf(screen, "at t= %.3f, this channel has negative pressure! %.2f (MPa) at x y z %f %f %f \n", update->ntimestep*update->dt, pressure*1.e-6, x0[channel_atom][0],x0[channel_atom][1],x0[channel_atom][2]);
-      pressure = 0; // this channel is partially filled with water
-    }
+    if (pressure < 0) pressure = 0; // this channel is partially filled with water
+
 
     channel_pressure[channel_atom] = pressure;
-
-      if ((update->ntimestep %50000)==0) fprintf(screen, "channel pressure is %.2f MPa at x y z %f %f %f  \n",channel_pressure[channel_atom]*1.e-6,x0[channel_atom][0],x0[channel_atom][1],x0[channel_atom][2]);
+    if ((update->ntimestep %50000)==0) fprintf(screen, "channel pressure is %.2f MPa at x y z %f %f %f  \n",channel_pressure[channel_atom]*1.e-6,x0[channel_atom][0],x0[channel_atom][1],x0[channel_atom][2]);
     
   }
 
 }
+
+
+/*======================================
+  routine used to check channel pressure only 
+  ======================================*/
+/*
+void FixLubricationUpdateBC:: check_channel_pressure()
+{
+  int n;
+  int nbondlist = neighbor->nbondlist;
+  int **bondlist = neighbor->bondlist;
+  int rock_atom1,rock_atom2,btype;
+  int channel_atom;
+  int *atype = atom->type;
+  double *channel_pressure = atom->channel_pressure;
+  double **x0 = atom->x0;
+  for (n = 0; n < nbondlist; n++) {
+    rock_atom1 = bondlist[n][0];
+    rock_atom2 = bondlist[n][1];
+    btype = bondlist[n][2];
+    if (btype != WET_CHANNEL_BOND_TYPE ) continue;
+    channel_atom = find_channel_atom(rock_atom1, rock_atom2);
+    //    fprintf(screen, "===== check atype of this channel is %d (3?), channel_atom= %d at x y %f %f,  pressure %f \n",atype[channel_atom],channel_atom, x0[channel_atom][0],x0[channel_atom][1],channel_pressure[channel_atom]);
+    
+  }
+}
+*/
 
 
 
@@ -199,7 +203,7 @@ void FixLubricationUpdateBC::cal_channel_pressure()
   channel flow based on lubrication approximation
   ========================================*/
 
-void FixLubricationUpdateBC::lubrication(){
+void FixLubricationUpdateBC2::lubrication(){
 
   int n;
   int nlocal = atom->nlocal;
@@ -211,7 +215,7 @@ void FixLubricationUpdateBC::lubrication(){
   double local_w;
   double on_twelve_mu_L;
   double **v = atom->v;
-  double L = lat_spacing;
+  double L = 1.0;
   double vil; 
   double mu = 1.e-3; //Pa.s
   int channel_atomi, channel_atomj;
@@ -225,11 +229,19 @@ void FixLubricationUpdateBC::lubrication(){
   double *channel_width_old = atom->channel_width_old;
   double *channel_pressure = atom->channel_pressure;
   double vij;
-
+  int rock_atom1, rock_atom2;
   int nstep = update->ntimestep;
   double ntime = update->dt;
   double dw;
-  on_twelve_mu_L =1.0/(12.0*mu*L);// need to be rescaled if lattice spacing L is not 1 meter.
+  int BC_cond; // unbreakable bonds outside this region
+
+
+
+  on_twelve_mu_L =1.0/(12.0*mu*L);// need to be rescaled if lattice spacing is not 1 meter.
+  for (n=0; n<nlocal;n++){
+    if (atype[n] != CONNECTED_CHANNEL_ATOM_TYPE) continue;
+    channel_width_old[n]= channel_width[n];
+  }
 
   for (n=0; n<nlocal;n++){
     if (atype[n] != CONNECTED_CHANNEL_ATOM_TYPE ) continue;
@@ -244,19 +256,34 @@ void FixLubricationUpdateBC::lubrication(){
       channel_wj = channel_width_old[channel_atomj];
       channel_pj = channel_pressure[channel_atomj];
 
-      local_w =0; 
 
       if (channel_pi > channel_pj){local_w = channel_wi;}
       else {local_w = channel_wj;}
       vij = (channel_pj-channel_pi)*local_w*local_w*local_w*on_twelve_mu_L;
-      if ((channel_pi < 0) || (channel_pj < 0)){fprintf(screen, "Negative pressure!!! pressure calculation is wrong!!!!!!. Check again!! \n");}
-      if (fabs(vij) > vij_max){
-	if (vij > 0){vij = vij_max;}
-	else {vij = -vij_max;}  
-      }
-
+      //      channel_width[channel_atomi]+=vij *update->dt;
       dw = vij * update->dt;
-      channel_width[channel_atomi]+=dw;
+
+
+
+    //===================
+
+  BC_cond=1;
+    if ( (x0[channel_atomi][0]- (BC_xlo+1)) * (x0[channel_atomi][0]- (BC_xhi-1)) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
+    if ( (x0[channel_atomi][1]- (BC_ylo+1)) * (x0[channel_atomi][1]- (BC_yhi-1)) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
+    if ( (x0[channel_atomi][2]- (BC_zlo+1)) * (x0[channel_atomi][2]- (BC_zhi-1)) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
+
+    if ( (x0[channel_atomj][0]- (BC_xlo+1)) * (x0[channel_atomj][0]- (BC_xhi-1)) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
+    if ( (x0[channel_atomj][1]- (BC_ylo+1)) * (x0[channel_atomj][1]- (BC_yhi-1)) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
+    if ( (x0[channel_atomj][2]- (BC_zlo+1)) * (x0[channel_atomj][2]- (BC_zhi-1)) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
+    if (BC_cond ==0) {dw=0;} // strong pressure so we can pin the ends of channels.
+
+    //===================
+
+
+
+      channel_width[channel_atomi]+=0.5*dw;
+      channel_width[channel_atomj]-=0.5*dw;
+      //channel_width[channel_atomi]+=dw;
     }
   }
 }
@@ -265,7 +292,7 @@ void FixLubricationUpdateBC::lubrication(){
 /*========================================
   channel atom update based on new channel width
   ========================================*/
-void FixLubricationUpdateBC::channel_update(){
+void FixLubricationUpdateBC2::channel_update(){
 
   int n;
   int nbondlist = neighbor->nbondlist;
@@ -274,8 +301,7 @@ void FixLubricationUpdateBC::channel_update(){
   int btype;
   int *atype = atom->type;
   double  *channel_width = atom->channel_width;
-  double  *channel_width_old = atom->channel_width_old;
-  double channel_w,channel_w0;
+  double channel_w;
   double delta_x, delta_y, delta_z, delta_mag;
   double **x0 = atom->x0;
   double **x = atom->x;
@@ -295,13 +321,13 @@ void FixLubricationUpdateBC::channel_update(){
     if (atype[channel_atom] != CONNECTED_CHANNEL_ATOM_TYPE ) {fprintf(screen, "!!!!this bond should be wet channel but it is %d. Check again \n",atype[channel_atom]); continue;}
 
     channel_w = channel_width[channel_atom];
-      
+
     delta_x = x0[rock_atom1][0] - x0[rock_atom2][0];
     delta_y = x0[rock_atom1][1] - x0[rock_atom2][1];
     delta_z = x0[rock_atom1][2] - x0[rock_atom2][2];
     delta_mag = sqrt (delta_x *delta_x + delta_y *delta_y +delta_z *delta_z);
     
-
+   
     if (newton_bond || rock_atom1 <nlocal){
       if (fabs(delta_x)  == delta_mag) {
 	x[rock_atom1][0] = x[channel_atom][0] +0.5*(1+channel_w) * delta_x/delta_mag;
@@ -335,7 +361,7 @@ void FixLubricationUpdateBC::channel_update(){
   find channel_atom between rock_atom1, and rock_atom2
   ====================================================*/
 
-int FixLubricationUpdateBC::find_channel_atom(int rock_atom1, int rock_atom2){
+int FixLubricationUpdateBC2::find_channel_atom(int rock_atom1, int rock_atom2){
   
   int ii,jj;
   int return_channel_atom;
@@ -365,11 +391,10 @@ int FixLubricationUpdateBC::find_channel_atom(int rock_atom1, int rock_atom2){
 
 
 
-/*==================================
-if a ISOLATED_CHANNEL_ATOM_TYPE atom is now a CONNECTED_CHANNEL_ATOM_TYPE atom, it becomes CONNECTED_CHANNEL_ATOM_TYPE.  
-  ==================================*/
 
-void FixLubricationUpdateBC::new_channel()
+
+
+void FixLubricationUpdateBC2::new_channel()
 { 
   int *atype = atom->type;
   int n;
@@ -385,7 +410,7 @@ void FixLubricationUpdateBC::new_channel()
   int **bond_channel_atom = atom->bond_channel_atom;
   int ii;
   int channel_atomj;
-  int connection_check[6];
+  int connection_check[6];//={0,0,0,0,0,0};
   
   int check;
   int m;
@@ -426,14 +451,10 @@ void FixLubricationUpdateBC::new_channel()
 
 }
 
-/*==================================
-(1) if spring extension is greater than cutoff, this spring breaks (SPRING_BOND_TYPE becomes DRY_CHANNEL_BOND_TYPE)
-the corresponding channel atom becomes ISOLATED_CHANNEL_ATOM_TYPE
-(2) in order to avoid a sudden channel walls movement as a dry crack becomes a wet one, we assume that the corresponding bond of a CONNECTED_CHANNEL_ATOM_TYPE bond is DRY_CHANNEL_BOND_TYPE by default. if this channel is filled with water (i.e., channel_width +1 >= dry crack width)
- this DRY_CHANNEL_BOND_TYPE becomes WET_CHANNEL_BOND_TYPE;
-  ==================================*/
 
-void FixLubricationUpdateBC::bond_break()
+
+
+void FixLubricationUpdateBC2::bond_break()
 {
   int n, m, rock_atom1, rock_atom2;
   int nlocal = atom->nlocal;
@@ -474,21 +495,20 @@ void FixLubricationUpdateBC::bond_break()
 	  delta_z = atom1z - atom2z;
 	  
 	  dist = sqrt (delta_x*delta_x +delta_y*delta_y + delta_z*delta_z);
-	  /*
 	  if(dist > 1.1) {
 	    fprintf(screen, "!!!!! rock takes apart, dist = %f too big !!!\n", dist );
 	    error->one(FLERR,"rock takes apart!");
 	    //	    error->done();	    //	    MPI_Finalize();	    //	    exit(1);
 	  }
-	  */
+
 
 	  channel_atom = find_channel_atom(rock_atom1, rock_atom2);
 
 	  cutoff = channel_delta_cutoff[channel_atom];
 
 	  if (bond_type[rock_atom1][m]== SPRING_BOND_TYPE && dist >cutoff){
-
 	    BC_cond = 1;
+	    
 	    if ( (x0[channel_atom][0]- BC_xlo) * (x0[channel_atom][0]- BC_xhi) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
 	    if ( (x0[channel_atom][1]- BC_ylo) * (x0[channel_atom][1]- BC_yhi) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
 	    if ( (x0[channel_atom][2]- BC_zlo) * (x0[channel_atom][2]- BC_zhi) > 0 ) { BC_cond = 0;} // outside the region of fracturing system, BC_cond = 0 means unbreakable reagion.
@@ -512,16 +532,26 @@ void FixLubricationUpdateBC::bond_break()
 	      fprintf(screen, "ntimestep %d  wet channel created, dist %f > cutoff %f at x y z %f %f %f \n", nstep, dist, cutoff, x0[channel_atom][0], x0[channel_atom][1], x0[channel_atom][2]);
 	    }
 	  }
-  
+
+
+	  
     }
   
+
   }
+
+
+
+
+
+
+
 
 }
 
 
 /*------------------------------------------------------*/
-int FixLubricationUpdateBC::pack_comm(int n, int *list, double *buf,
+int FixLubricationUpdateBC2::pack_comm(int n, int *list, double *buf,
                              int pbc_flag, int *pbc)
 {
  int i,j,m;
@@ -538,7 +568,7 @@ int FixLubricationUpdateBC::pack_comm(int n, int *list, double *buf,
 
 /* ---------------------------------------------------------------------- */
 
-void FixLubricationUpdateBC::unpack_comm(int n, int first, double *buf)
+void FixLubricationUpdateBC2::unpack_comm(int n, int first, double *buf)
 {
   int i,m,last;
 
@@ -551,7 +581,7 @@ void FixLubricationUpdateBC::unpack_comm(int n, int first, double *buf)
 }
 /* ---------------------------------------------------------------------- */
 
-int FixLubricationUpdateBC::pack_reverse_comm(int n, int first, double *buf)
+int FixLubricationUpdateBC2::pack_reverse_comm(int n, int first, double *buf)
 {
   int i,m,last;
 
@@ -566,7 +596,7 @@ int FixLubricationUpdateBC::pack_reverse_comm(int n, int first, double *buf)
 
 /* ---------------------------------------------------------------------- */
 
-void FixLubricationUpdateBC::unpack_reverse_comm(int n, int *list, double *buf)
+void FixLubricationUpdateBC2::unpack_reverse_comm(int n, int *list, double *buf)
 {
   int i,j,m;
   
@@ -582,7 +612,7 @@ void FixLubricationUpdateBC::unpack_reverse_comm(int n, int *list, double *buf)
 
   =============================*/
 
-double FixLubricationUpdateBC::memory_usage()
+double FixLubricationUpdateBC2::memory_usage()
 {
   int nmax = atom->nmax;
   double bytes = nmax*sizeof(int);

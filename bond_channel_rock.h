@@ -11,53 +11,42 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
-#ifdef FIX_CLASS
+#ifdef COMMAND_CLASS
 
-FixStyle(lubrication/update_BC,FixLubricationUpdateBC)
+CommandStyle(bond_channel_rock,BondChannelRock)
 
 #else
 
-#ifndef LMP_FIX_LUBRICATION_UPDATE_BC_H
-#define LMP_FIX_LUBRICATION_UPDATE_BC_H
+#ifndef LMP_BOND_CHANNEL_ROCK_H
+#define LMP_BOND_CHANNEL_ROCK_H
 
-#include "fix.h"
+#include "pointers.h"
 
 namespace LAMMPS_NS {
 
-class FixLubricationUpdateBC : public Fix {
+class BondChannelRock : protected Pointers {
  public:
-  FixLubricationUpdateBC(class LAMMPS *, int, char **);
-  ~FixLubricationUpdateBC();
 
-  int setmask();
-
-  //void pre_force(int);
-  void final_integrate();
-
-  int find_channel_atom(int, int);
-  void cal_channel_pressure();
-  void lubrication();
-  void copy_channel_width();
-  void check_channel_pressure();
-  void channel_update();
-  void new_channel();  
-  void bond_break();
-
+  BondChannelRock(class LAMMPS *);
+  void command(int, char **);
   int pack_comm(int, int *, double *, int, int *);
   void unpack_comm(int, int, double *);
   int pack_reverse_comm(int, int, double *);
   void unpack_reverse_comm(int, int *, double *);
   double memory_usage();
 
+
+
+
  private:
-  double BC_xlo, BC_xhi;
-  double BC_ylo, BC_yhi;
-  double BC_zlo, BC_zhi;
-  double vij_max;
-  double lat_spacing;
-  //  double injection_x, injection_y, injection_z;
-  int nmax;
-  int *partner;
+
+  int *partner0;
+  int *partner1;
+  int *partner2;
+  int *partner3;
+  int *partner4;
+  int *partner5;
+
 
 };
 

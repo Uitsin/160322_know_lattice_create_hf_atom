@@ -37,7 +37,6 @@ class FixLubricationUpdateBC : public Fix {
   int find_channel_atom(int, int);
   void cal_channel_pressure();
   void lubrication();
-  void copy_channel_width();
   void check_channel_pressure();
   void channel_update();
   void new_channel();  
@@ -54,7 +53,6 @@ class FixLubricationUpdateBC : public Fix {
   double BC_ylo, BC_yhi;
   double BC_zlo, BC_zhi;
   double vij_max;
-  double lat_spacing;
   //  double injection_x, injection_y, injection_z;
   int nmax;
   int *partner;
