@@ -211,7 +211,7 @@ void FixLubricationUpdateBC::lubrication(){
   double local_w;
   double on_twelve_mu_L;
   double **v = atom->v;
-  double L = lat_spacing;
+  double L = lat_spacing; 
   double vil; 
   double mu = 1.e-3; //Pa.s
   int channel_atomi, channel_atomj;

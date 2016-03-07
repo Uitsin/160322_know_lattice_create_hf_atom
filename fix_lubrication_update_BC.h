@@ -54,7 +54,7 @@ class FixLubricationUpdateBC : public Fix {
   double BC_ylo, BC_yhi;
   double BC_zlo, BC_zhi;
   double vij_max;
-  double lat_spacing;
+  double lat_spacing; 
   //  double injection_x, injection_y, injection_z;
   int nmax;
   int *partner;
