@@ -36,7 +36,7 @@ enum{TIME,ATOMX,ATOMY,ATOMZ,PRESSURE,WIDTH};
 ComputeChannelPressure::ComputeChannelPressure(LAMMPS *lmp, int narg, char **arg) :
   Compute(lmp, narg, arg)
 {
-  if (narg < 5) error->all(FLERR,"Illegal compute bond/local command");
+  if (narg < 6) error->all(FLERR,"Illegal compute bond/local command");
 
   if (atom->avec->bonds_allow == 0)
     error->all(FLERR,"Compute bond/local used when bonds are not allowed");
@@ -54,8 +54,9 @@ ComputeChannelPressure::ComputeChannelPressure(LAMMPS *lmp, int narg, char **arg
     else if (strcmp(arg[iarg],"atomx") == 0) bstyle[nvalues++] = ATOMX;
     else if (strcmp(arg[iarg],"atomy") == 0) bstyle[nvalues++] = ATOMY;
     else if (strcmp(arg[iarg],"atomz") == 0) bstyle[nvalues++] = ATOMZ;
-    else if (strcmp(arg[iarg],"pressure") == 0) bstyle[nvalues++] = PRESSURE;
-    else if (strcmp(arg[iarg],"width") == 0) bstyle[nvalues++] = WIDTH;
+    else if (strcmp(arg[iarg],"x1") == 0) bstyle[nvalues++] = X1;
+    else if (strcmp(arg[iarg],"x2") == 0) bstyle[nvalues++] = X2;
+    else if (strcmp(arg[iarg],"x3") == 0) bstyle[nvalues++] = X3;
     else error->all(FLERR,"Invalid keyword in compute bond/local command");
   }
 
@@ -168,8 +169,10 @@ int ComputeChannelPressure::compute_bonds(int flag)
     temp_atomx = x0[atom1][0];
     temp_atomy = x0[atom1][1];
     temp_atomz = x0[atom1][2];
-    temp_pressure = channel_pressure[atom1]*1.e-6; // MPa
-    temp_width = channel_width[atom1]*1.e6; //microns
+    temp_x1 = x[atoms][0]; // MPa
+    temp_x2 = x[atoms][1]; //microns
+    temp_x3 = x[atoms][2];
+    
 
     if (flag){
       
@@ -192,11 +195,14 @@ int ComputeChannelPressure::compute_bonds(int flag)
 	case ATOMZ://BONDX:
 	  ptr[n] =temp_atomz;//(double)atom1;//bondx;
 	  break;
-	case PRESSURE://BONDX:
-	  ptr[n] =temp_pressure;//(double)atom1;//bondx;
+	case X1://BONDX:
+	  ptr[n] =temp_x1;//(double)atom1;//bondx;
 	  break;
-	case WIDTH://BONDX:
-	  ptr[n] =temp_width;//(double)atom1;//bondx;
+	case X2://BONDX:
+	  ptr[n] =temp_x2;//(double)atom1;//bondx;
+	  break;
+	case X3://BONDX:
+	  ptr[n] =temp_x3;//(double)atom1;//bondx;
 	  break;
 	  
 	}
